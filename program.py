@@ -1099,7 +1099,7 @@ class App(tk.Tk):
         self._about_icon = ImageTk.PhotoImage(make_icon(P(56)))
         ttk.Label(body, image=self._about_icon).grid(row=0, column=0, rowspan=3, sticky="n", padx=(0, P(14)))
         ttk.Label(body, text=APP_NAME, font=("Segoe UI Semibold", 13)).grid(row=0, column=1, sticky="w")
-        ttk.Label(body, text=f"Version {VERSION}  ·  part of the CK Suite  ·  MIT License",
+        ttk.Label(body, text=f"Version {VERSION}  ·  CK Suite  ·  © CK Software  ·  MIT License",
                   style="Muted.TLabel").grid(row=1, column=1, sticky="w")
         link = ttk.Label(body, text=f"github.com/{REPO}", style="Link.TLabel", cursor="hand2")
         link.grid(row=2, column=1, sticky="w", pady=(P(4), 0))

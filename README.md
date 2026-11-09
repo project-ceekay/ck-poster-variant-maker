@@ -76,5 +76,5 @@ Releases are built automatically by GitHub Actions when a version tag (`v1.2.3`)
 
 ## License
 
-[MIT](LICENSE) © ceekay. Bundled third-party components are listed in
+[MIT](LICENSE) © CK Software. Bundled third-party components are listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
