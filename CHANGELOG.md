@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- Smooth window resizing: the window keeps up with the mouse while you drag its edge, and lays
+  itself out once when you let go
+- CK Software is credited as the publisher and copyright holder
+
 ## 1.0.0
 
 First public release.

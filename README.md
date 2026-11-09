@@ -1,12 +1,30 @@
-# CK Poster Variant Maker
+<p align="center">
+  <img src="docs/icon.png" width="96" height="96" alt="CK Poster Variant Maker icon">
+</p>
 
-Turn one high-resolution poster into every version you need to share it, in one click:
-a full-quality PNG, a lighter web JPG, and ready-to-post social images where the whole poster
-sits sharp and centred on a soft, blurred copy of itself.
+<h1 align="center">CK Poster Variant Maker</h1>
 
-Part of the **CK Suite**, a set of small, free Windows tools.
+<p align="center">
+  Turn one poster into every version you need to share it:<br>full-quality PNG, web JPG and ready-to-post social images, in one click.
+</p>
+
+<p align="center">
+  <a href="https://github.com/project-ceekay/ck-poster-variant-maker/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/project-ceekay/ck-poster-variant-maker?label=release&color=0067c0"></a>
+  <a href="https://github.com/project-ceekay/ck-poster-variant-maker/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/project-ceekay/ck-poster-variant-maker/total?color=0067c0"></a>
+  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0067c0">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-0067c0"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/project-ceekay/ck-poster-variant-maker/releases/latest"><b>Download</b></a> ·
+  <a href="https://cksoftware.netlify.app/poster-variant-maker.html">Website</a> ·
+  <a href="CHANGELOG.md">What's new</a> ·
+  <a href="https://cksoftware.netlify.app/">More CK Software</a>
+</p>
 
 ![CK Poster Variant Maker](docs/screenshot.png)
+
+Part of the **CK Suite**, a set of small, free Windows tools by [CK Software](https://cksoftware.netlify.app/).
 
 ## What you get
 

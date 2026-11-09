@@ -38,7 +38,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageCms, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageTk
 
 APP_NAME = "CK Poster Variant Maker"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 REPO = "project-ceekay/ck-poster-variant-maker"
 
 # ------------------------------------------------------------- output variants
@@ -536,6 +536,118 @@ def enable_file_drop(widget, on_drop):
 
 
 # ------------------------------------------------------------------ app
+def smooth_resize(root, settle_ms=120):
+    """Keep dragging the window edge smooth. On Windows every Tk widget is its own native window,
+    and all of them are moved and repainted on every resize step, so live resizing a full window
+    lags. While the size is changing, the window shows a still picture of itself instead (the
+    bottom-packed footer pinned to the bottom edge) and the real widgets are hidden; settle_ms
+    after the last change they come back, laid out once for the new size."""
+    if not sys.platform.startswith("win"):
+        return
+    import ctypes
+    from ctypes import wintypes
+    user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+    H = ctypes.c_void_p
+    user32.GetDC.restype = H
+    user32.GetDC.argtypes = [wintypes.HWND]
+    user32.ReleaseDC.argtypes = [wintypes.HWND, H]
+    user32.PrintWindow.argtypes = [wintypes.HWND, H, wintypes.UINT]
+    gdi32.CreateCompatibleDC.restype = H
+    gdi32.CreateCompatibleDC.argtypes = [H]
+    gdi32.CreateCompatibleBitmap.restype = H
+    gdi32.CreateCompatibleBitmap.argtypes = [H, ctypes.c_int, ctypes.c_int]
+    gdi32.SelectObject.restype = H
+    gdi32.SelectObject.argtypes = [H, H]
+    gdi32.GetDIBits.argtypes = [H, H, wintypes.UINT, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT]
+    gdi32.DeleteObject.argtypes = [H]
+    gdi32.DeleteDC.argtypes = [H]
+
+    def capture(w, h):
+        """The window's client area as Windows composed it, even where other windows cover it."""
+        hwnd = int(root.wm_frame(), 16)
+        hdc = user32.GetDC(hwnd)
+        mem = gdi32.CreateCompatibleDC(hdc)
+        bmp = gdi32.CreateCompatibleBitmap(hdc, w, h)
+        old = gdi32.SelectObject(mem, bmp)
+        try:
+            if not user32.PrintWindow(hwnd, mem, 3):  # PW_CLIENTONLY | PW_RENDERFULLCONTENT
+                return None
+            header = (ctypes.c_uint32 * 10)(40, w, ctypes.c_uint32(-h).value, 1 | (32 << 16), 0, 0, 0, 0, 0, 0)
+            buf = ctypes.create_string_buffer(w * h * 4)  # 32-bit top-down BGRX rows
+            if not gdi32.GetDIBits(mem, bmp, 0, h, buf, header, 0):
+                return None
+            return Image.frombuffer("RGB", (w, h), buf.raw, "raw", "BGRX", 0, 1)
+        finally:
+            gdi32.SelectObject(mem, old)
+            gdi32.DeleteObject(bmp)
+            gdi32.DeleteDC(mem)
+            user32.ReleaseDC(hwnd, hdc)
+
+    bg = ttk.Style(root).lookup("TFrame", "background") or "#f0f0f0"
+    state = {"size": None, "frozen": None, "shots": [], "job": None, "zoomed": False}
+    big = round(200 * root.winfo_fpixels("1i") / 96)  # a jump this large (200 px at 100%) is no drag
+
+    def thaw():
+        state["job"] = None
+        frozen, state["frozen"] = state["frozen"], None
+        for w, info in frozen or ():
+            w.pack(**info)  # in the original order, so the layout is exactly as before
+        for shot in state["shots"]:
+            shot.destroy()
+        state["shots"] = []
+
+    def freeze(old_w, old_h):
+        slaves = [(w, w.pack_info()) for w in root.pack_slaves() if w.winfo_ismapped()]
+        if not slaves:
+            return
+        w, h = root.winfo_width(), root.winfo_height()
+        try:
+            shown = capture(w, h)
+        except (OSError, ValueError, tk.TclError):
+            shown = None
+        if shown is None:
+            return  # just resize normally
+        # the sections are still laid out for the old size; a strip lost to shrinking shows as background
+        image = Image.new("RGB", (old_w, old_h), tuple(c >> 8 for c in root.winfo_rgb(bg)))
+        image.paste(shown.crop((0, 0, min(w, old_w), min(h, old_h))))
+        # everything from the first bottom-packed section down stays pinned to the bottom edge
+        split = min([w.winfo_y() for w, info in slaves if info.get("side") == "bottom"] or [old_h])
+        for box, place in (((0, 0, old_w, split), dict(x=0, y=0, anchor="nw")),
+                           ((0, split, old_w, old_h), dict(x=0, rely=1, anchor="sw"))):
+            if box[3] > box[1]:
+                photo = ImageTk.PhotoImage(image.crop(box))
+                shot = tk.Label(root, image=photo, bd=0, highlightthickness=0, bg=bg)
+                shot.image = photo
+                shot.place(**place)
+                state["shots"].append(shot)
+        for w, info in slaves:
+            info.pop("in", None)
+            w.pack_forget()
+        state["frozen"] = slaves
+
+    def on_configure(e):
+        if e.widget is not root:
+            return
+        size = (e.width, e.height)
+        old = state["size"]
+        state["size"] = size
+        if old in (None, size):
+            return
+        zoomed, was_zoomed = root.state() == "zoomed", state["zoomed"]
+        state["zoomed"] = zoomed
+        if state["frozen"] is None:
+            # one-off jumps (maximize, restore, snapping) just lay out once, as normal
+            if zoomed or was_zoomed or abs(size[0] - old[0]) > big or abs(size[1] - old[1]) > big:
+                return
+            freeze(*old)  # the window still shows the layout for the previous size
+        if state["job"]:
+            root.after_cancel(state["job"])
+        state["job"] = root.after(settle_ms, thaw)
+
+    root.configure(bg=bg)  # what shows in newly uncovered space while frozen
+    root.bind("<Configure>", on_configure, add="+")
+
+
 class App(tk.Tk):
     def __init__(self):
         enable_dpi_awareness()
@@ -574,6 +686,7 @@ class App(tk.Tk):
         self.update_info_ = None   # newest release when it's newer than this copy
 
         self.build_ui()
+        smooth_resize(self)
         enable_file_drop(self, self.on_drop)
         # the date is the thing most likely to need changing, so start there
         self.after(150, lambda: (self.date_entry.focus_set(), self.date_entry.select_range(0, "end")))
