@@ -38,8 +38,12 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageCms, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageTk
 
 APP_NAME = "CK Poster Variant Maker"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 REPO = "project-ceekay/ck-poster-variant-maker"
+
+DARK_MODE = False
+BORDER = "#d9d9d9"
+HOVER = "#e5f1fb"
 
 # ------------------------------------------------------------- output variants
 # kind "poster": the poster itself, resized. mode "long" keeps its shape (longest side = long),
@@ -74,32 +78,9 @@ IMAGE_TYPES = [("Images", " ".join("*" + e for e in IMAGE_EXTS)), ("All files", 
 
 
 # ------------------------------------------------------------- helpers
-def app_path():
-    """Folder of the exe when compiled, otherwise of this script."""
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
 
-
-def data_dir():
-    """Per-user settings folder: %APPDATA%\\CK Suite\\Poster Variant Maker."""
-    base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    path = os.path.join(base, "CK Suite", "Poster Variant Maker")
-    os.makedirs(path, exist_ok=True)
-    return path
-
-
-def open_path(path):
-    try:
-        if sys.platform.startswith("win"):
-            os.startfile(path)
-        elif sys.platform == "darwin":
-            subprocess.call(["open", path])
-        else:
-            subprocess.call(["xdg-open", path])
-    except Exception:
-        pass
-
+import ui_kit
+from ui_kit import *
 
 def folder_name_problem(name):
     """Why name can't be a Windows folder name, or None if it's fine."""
@@ -267,59 +248,7 @@ def generate(src_path, date, out_dir, variants, log, saved, move_source=False):
 
 
 # ------------------------------------------------------------- updates
-def version_tuple(text):
-    return tuple(int(x) for x in re.findall(r"\d+", text)[:3]) or (0,)
 
-
-def latest_release():
-    """{'version', 'notes', 'url', 'page'} of the newest GitHub release, or None."""
-    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
-                                 headers={"User-Agent": "CK-Suite-Updater", "Accept": "application/vnd.github+json"})
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            data = json.load(r)
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return {}  # the repo has no published release yet
-        raise
-    asset = next((a for a in data.get("assets", []) if a["name"].lower().endswith("setup.exe")), None)
-    return {"version": data.get("tag_name", "").lstrip("v"), "notes": data.get("body") or "",
-            "url": asset["browser_download_url"] if asset else None, "page": data.get("html_url")}
-
-
-# ------------------------------------------------------------- look & feel
-ACCENT = "#0067c0"      # Windows 11 accent blue
-ERROR = "#c42b1c"
-SUCCESS = "#0f7b0f"
-MUTED = "#5f6368"
-HEADER_BG = "#ffffff"
-PREVIEW_BG = "#ececec"
-
-
-def enable_dpi_awareness():
-    """Tell Windows we draw at real resolution, so text is sharp instead of stretched."""
-    if sys.platform.startswith("win"):
-        try:
-            import ctypes
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except Exception:
-            pass
-
-
-def make_icon(size=64):
-    """A small poster-on-blue window icon, drawn so the program needs no .ico file."""
-    s = size / 64
-    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    d.rounded_rectangle([4 * s, 4 * s, 60 * s, 60 * s], radius=12 * s, fill=ACCENT)
-    d.rectangle([19 * s, 11 * s, 45 * s, 53 * s], fill="white")
-    d.rectangle([23 * s, 15 * s, 41 * s, 35 * s], fill="#8cc4f0")
-    d.rectangle([23 * s, 39 * s, 41 * s, 42 * s], fill=ACCENT)
-    d.rectangle([23 * s, 45 * s, 35 * s, 48 * s], fill=ACCENT)
-    return im
-
-
-# ------------------------------------------------------------- date picker
 class DatePicker(tk.Toplevel):
     """Small month calendar under `anchor`. Calls on_pick(date) when a day is clicked."""
 
@@ -334,16 +263,16 @@ class DatePicker(tk.Toplevel):
         self.year, self.month = initial.year, initial.month
         self.selected = initial
 
-        head = tk.Frame(self, bg="white")
+        head = tk.Frame(self)
         head.pack(fill="x", padx=10, pady=(10, 4))
         ttk.Button(head, text="‹", width=3, command=lambda: self.shift(-1)).pack(side="left")
-        self.title_lbl = tk.Label(head, bg="white", font=("Segoe UI Semibold", 11))
+        self.title_lbl = tk.Label(head, font=("Segoe UI Semibold", 11))
         self.title_lbl.pack(side="left", fill="x", expand=True)
         ttk.Button(head, text="›", width=3, command=lambda: self.shift(1)).pack(side="right")
 
-        self.grid_frame = tk.Frame(self, bg="white")
+        self.grid_frame = tk.Frame(self)
         self.grid_frame.pack(padx=10)
-        foot = tk.Frame(self, bg="white")
+        foot = tk.Frame(self)
         foot.pack(fill="x", padx=10, pady=10)
         ttk.Button(foot, text="Today", command=lambda: self.pick(dt.date.today())).pack(side="right")
 
@@ -361,30 +290,38 @@ class DatePicker(tk.Toplevel):
         self.draw()
 
     def draw(self):
+        dark = DARK_MODE
+        bg = "#1e1e1e" if dark else "white"
+        fg = "#e8eaed" if dark else "#1a1a1a"
+        cell_bg = "#252526" if dark else "white"
+        hover_bg = "#323236" if dark else "#e5f1fb"
+        self.configure(bg=bg)
+        self.grid_frame.configure(bg=bg)
+        set_window_dark_titlebar(self, dark)
         for w in self.grid_frame.winfo_children():
             w.destroy()
-        self.title_lbl.configure(text=f"{calendar.month_name[self.month]} {self.year}")
+        self.title_lbl.configure(text=f"{calendar.month_name[self.month]} {self.year}", bg=bg, fg=fg)
         for c, name in enumerate(["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]):
-            tk.Label(self.grid_frame, text=name, bg="white", fg=MUTED,
+            tk.Label(self.grid_frame, text=name, bg=bg, fg="#9aa0a6" if dark else MUTED,
                      font=("Segoe UI", 9)).grid(row=0, column=c, pady=(0, 4))
         today = dt.date.today()
         cal = calendar.Calendar(firstweekday=6)  # weeks start on Sunday
         for r, week in enumerate(cal.monthdatescalendar(self.year, self.month), start=1):
             for c, day in enumerate(week):
-                bg, fg, font = "white", "#1a1a1a", ("Segoe UI", 10)
+                c_bg, c_fg, font = cell_bg, fg, ("Segoe UI", 10)
                 if day.month != self.month:
-                    fg = "#a0a0a0"
+                    c_fg = "#666666" if dark else "#a0a0a0"
                 if day == today:
-                    fg, font = ACCENT, ("Segoe UI Semibold", 10)
+                    c_fg, font = ("#4cc2ff" if dark else ACCENT), ("Segoe UI Semibold", 10)
                 if day == self.selected:
-                    bg, fg = ACCENT, "white"
+                    c_bg, c_fg = ACCENT, "white"
                 cell = tk.Label(self.grid_frame, text=str(day.day), width=4, pady=4,
-                                bg=bg, fg=fg, font=font, cursor="hand2")
+                                bg=c_bg, fg=c_fg, font=font, cursor="hand2")
                 cell.grid(row=r, column=c, padx=1, pady=1)
                 cell.bind("<Button-1>", lambda e, d=day: self.pick(d))
-                if day != self.selected:  # light hover highlight
-                    cell.bind("<Enter>", lambda e: e.widget.configure(bg="#e5f1fb"))
-                    cell.bind("<Leave>", lambda e: e.widget.configure(bg="white"))
+                if day != self.selected:  # hover highlight
+                    cell.bind("<Enter>", lambda e, h=hover_bg: e.widget.configure(bg=h))
+                    cell.bind("<Leave>", lambda e, b=cell_bg: e.widget.configure(bg=b))
 
     def pick(self, day):
         self.on_pick(day)
@@ -444,6 +381,7 @@ class SizesDialog(tk.Toplevel):
         ttk.Button(bar, text="Reset to Defaults", command=self.reset).pack(side="left")
         ttk.Button(bar, text="Save", style="Go.TButton", default="active", command=self.save).pack(side="right")
         ttk.Button(bar, text="Cancel", command=self.destroy).pack(side="right", padx=(0, P(8)))
+        set_window_dark_titlebar(self, DARK_MODE)
         self.bind("<Escape>", lambda e: self.destroy())
         self.update_idletasks()
         self.geometry(f"+{app.winfo_rootx() + P(60)}+{app.winfo_rooty() + P(80)}")
@@ -484,169 +422,6 @@ class SizesDialog(tk.Toplevel):
 
 
 # ------------------------------------------------------------- drag and drop
-def enable_file_drop(widget, on_drop):
-    """Windows only: on_drop(paths) is called when files are dragged onto widget's window.
-    Uses the classic WM_DROPFILES message directly, so no extra package is needed."""
-    if not sys.platform.startswith("win"):
-        return
-    try:
-        import ctypes
-        from ctypes import wintypes
-        user32, shell32 = ctypes.windll.user32, ctypes.windll.shell32
-        LRESULT = ctypes.c_ssize_t
-        WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
-        user32.SetWindowLongPtrW.restype = ctypes.c_void_p
-        user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
-        user32.CallWindowProcW.restype = LRESULT
-        user32.CallWindowProcW.argtypes = [ctypes.c_void_p, wintypes.HWND, wintypes.UINT,
-                                           wintypes.WPARAM, wintypes.LPARAM]
-        shell32.DragQueryFileW.restype = wintypes.UINT
-        shell32.DragQueryFileW.argtypes = [ctypes.c_void_p, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
-        shell32.DragFinish.argtypes = [ctypes.c_void_p]
-        shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
-        WM_DROPFILES, GWLP_WNDPROC = 0x0233, -4
-        hwnd = widget.winfo_id()
-        drops = queue.Queue()
-
-        def proc(h, msg, wparam, lparam):
-            if msg == WM_DROPFILES:
-                paths = []
-                for i in range(shell32.DragQueryFileW(wparam, 0xFFFFFFFF, None, 0)):
-                    size = shell32.DragQueryFileW(wparam, i, None, 0) + 1
-                    buf = ctypes.create_unicode_buffer(size)
-                    shell32.DragQueryFileW(wparam, i, buf, size)
-                    paths.append(buf.value)
-                shell32.DragFinish(wparam)
-                drops.put(paths)  # never call Tk from in here (it crashes Python)
-                return 0
-            return user32.CallWindowProcW(old_proc, h, msg, wparam, lparam)
-
-        widget._drop_proc = WNDPROC(proc)  # must stay referenced while the window exists
-        shell32.DragAcceptFiles(hwnd, True)
-        old_proc = user32.SetWindowLongPtrW(hwnd, GWLP_WNDPROC, ctypes.cast(widget._drop_proc, ctypes.c_void_p))
-
-        def check():
-            while not drops.empty():
-                on_drop(drops.get())
-            widget.after(150, check)
-
-        check()
-    except Exception:
-        pass  # drag and drop is a convenience; Browse still works
-
-
-# ------------------------------------------------------------------ app
-def smooth_resize(root, settle_ms=120):
-    """Keep dragging the window edge smooth. On Windows every Tk widget is its own native window,
-    and all of them are moved and repainted on every resize step, so live resizing a full window
-    lags. While the size is changing, the window shows a still picture of itself instead (the
-    bottom-packed footer pinned to the bottom edge) and the real widgets are hidden; settle_ms
-    after the last change they come back, laid out once for the new size."""
-    if not sys.platform.startswith("win"):
-        return
-    import ctypes
-    from ctypes import wintypes
-    user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-    H = ctypes.c_void_p
-    user32.GetDC.restype = H
-    user32.GetDC.argtypes = [wintypes.HWND]
-    user32.ReleaseDC.argtypes = [wintypes.HWND, H]
-    user32.PrintWindow.argtypes = [wintypes.HWND, H, wintypes.UINT]
-    gdi32.CreateCompatibleDC.restype = H
-    gdi32.CreateCompatibleDC.argtypes = [H]
-    gdi32.CreateCompatibleBitmap.restype = H
-    gdi32.CreateCompatibleBitmap.argtypes = [H, ctypes.c_int, ctypes.c_int]
-    gdi32.SelectObject.restype = H
-    gdi32.SelectObject.argtypes = [H, H]
-    gdi32.GetDIBits.argtypes = [H, H, wintypes.UINT, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT]
-    gdi32.DeleteObject.argtypes = [H]
-    gdi32.DeleteDC.argtypes = [H]
-
-    def capture(w, h):
-        """The window's client area as Windows composed it, even where other windows cover it."""
-        hwnd = int(root.wm_frame(), 16)
-        hdc = user32.GetDC(hwnd)
-        mem = gdi32.CreateCompatibleDC(hdc)
-        bmp = gdi32.CreateCompatibleBitmap(hdc, w, h)
-        old = gdi32.SelectObject(mem, bmp)
-        try:
-            if not user32.PrintWindow(hwnd, mem, 3):  # PW_CLIENTONLY | PW_RENDERFULLCONTENT
-                return None
-            header = (ctypes.c_uint32 * 10)(40, w, ctypes.c_uint32(-h).value, 1 | (32 << 16), 0, 0, 0, 0, 0, 0)
-            buf = ctypes.create_string_buffer(w * h * 4)  # 32-bit top-down BGRX rows
-            if not gdi32.GetDIBits(mem, bmp, 0, h, buf, header, 0):
-                return None
-            return Image.frombuffer("RGB", (w, h), buf.raw, "raw", "BGRX", 0, 1)
-        finally:
-            gdi32.SelectObject(mem, old)
-            gdi32.DeleteObject(bmp)
-            gdi32.DeleteDC(mem)
-            user32.ReleaseDC(hwnd, hdc)
-
-    bg = ttk.Style(root).lookup("TFrame", "background") or "#f0f0f0"
-    state = {"size": None, "frozen": None, "shots": [], "job": None, "zoomed": False}
-    big = round(200 * root.winfo_fpixels("1i") / 96)  # a jump this large (200 px at 100%) is no drag
-
-    def thaw():
-        state["job"] = None
-        frozen, state["frozen"] = state["frozen"], None
-        for w, info in frozen or ():
-            w.pack(**info)  # in the original order, so the layout is exactly as before
-        for shot in state["shots"]:
-            shot.destroy()
-        state["shots"] = []
-
-    def freeze(old_w, old_h):
-        slaves = [(w, w.pack_info()) for w in root.pack_slaves() if w.winfo_ismapped()]
-        if not slaves:
-            return
-        w, h = root.winfo_width(), root.winfo_height()
-        try:
-            shown = capture(w, h)
-        except (OSError, ValueError, tk.TclError):
-            shown = None
-        if shown is None:
-            return  # just resize normally
-        # the sections are still laid out for the old size; a strip lost to shrinking shows as background
-        image = Image.new("RGB", (old_w, old_h), tuple(c >> 8 for c in root.winfo_rgb(bg)))
-        image.paste(shown.crop((0, 0, min(w, old_w), min(h, old_h))))
-        # everything from the first bottom-packed section down stays pinned to the bottom edge
-        split = min([w.winfo_y() for w, info in slaves if info.get("side") == "bottom"] or [old_h])
-        for box, place in (((0, 0, old_w, split), dict(x=0, y=0, anchor="nw")),
-                           ((0, split, old_w, old_h), dict(x=0, rely=1, anchor="sw"))):
-            if box[3] > box[1]:
-                photo = ImageTk.PhotoImage(image.crop(box))
-                shot = tk.Label(root, image=photo, bd=0, highlightthickness=0, bg=bg)
-                shot.image = photo
-                shot.place(**place)
-                state["shots"].append(shot)
-        for w, info in slaves:
-            info.pop("in", None)
-            w.pack_forget()
-        state["frozen"] = slaves
-
-    def on_configure(e):
-        if e.widget is not root:
-            return
-        size = (e.width, e.height)
-        old = state["size"]
-        state["size"] = size
-        if old in (None, size):
-            return
-        zoomed, was_zoomed = root.state() == "zoomed", state["zoomed"]
-        state["zoomed"] = zoomed
-        if state["frozen"] is None:
-            # one-off jumps (maximize, restore, snapping) just lay out once, as normal
-            if zoomed or was_zoomed or abs(size[0] - old[0]) > big or abs(size[1] - old[1]) > big:
-                return
-            freeze(*old)  # the window still shows the layout for the previous size
-        if state["job"]:
-            root.after_cancel(state["job"])
-        state["job"] = root.after(settle_ms, thaw)
-
-    root.configure(bg=bg)  # what shows in newly uncovered space while frozen
-    root.bind("<Configure>", on_configure, add="+")
-
 
 class App(tk.Tk):
     def __init__(self):
@@ -684,8 +459,11 @@ class App(tk.Tk):
         self.preview_base = None   # small poster image the previews are drawn from
         self.preview_token = 0
         self.update_info_ = None   # newest release when it's newer than this copy
+        self.dark_mode = tk.BooleanVar(value=bool(self.cfg.get("dark_mode", False)))
 
         self.build_ui()
+        if self.dark_mode.get():
+            self.apply_dark_mode()
         smooth_resize(self)
         enable_file_drop(self, self.on_drop)
         # the date is the thing most likely to need changing, so start there
@@ -693,10 +471,21 @@ class App(tk.Tk):
         self.bind("<Control-o>", lambda e: self.browse_source())
         self.bind("<Control-Return>", lambda e: self.start())
         self.bind("<F5>", lambda e: self.start())
+        self.bind("<Control-d>", lambda e: self.browse_out())
+        self.bind("<Control-e>", lambda e: self.open_out())
+        self.bind("<Control-comma>", lambda e: SizesDialog(self))
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.log(f"{APP_NAME} {VERSION}. Choose a poster, a date and where to save.")
         if self.auto_update.get() and time.time() - self.cfg.get("last_update_check", 0) > 20 * 3600:
             self.after(2500, lambda: self.check_updates(quiet=True))
+
+    def update_title(self):
+        src = self.source.get().strip()
+        if src:
+            name = os.path.basename(src)
+            self.title(f"{APP_NAME} v{VERSION} - {name}")
+        else:
+            self.title(f"{APP_NAME} v{VERSION}")
 
     def px(self, n):
         """n pixels at 100% scaling, converted to this screen's scaling."""
@@ -723,22 +512,223 @@ class App(tk.Tk):
         style.configure("Treeview", rowheight=line + self.px(10))
         style.configure("Treeview.Heading", font=("Segoe UI Semibold", 10))
 
+    def build_menubar(self):
+        """Top menu bar: File | Edit | View | Variants | Help."""
+        mb_bg = "#ffffff"
+        mb_fg = "#1a1a1a"
+        bar = tk.Frame(self, bg=mb_bg, height=self.px(28))
+        bar.pack(fill="x")
+        self.menubar_frame = bar
+
+        self._menu_btns = []
+        self._menus = []
+
+        def add_menu(label, underline_idx, items):
+            m = tk.Menu(bar, tearoff=0, font=("Segoe UI", 10),
+                        bg="#ffffff", fg="#1a1a1a",
+                        activebackground=ACCENT, activeforeground="#ffffff")
+            self._menus.append(m)
+            for it in items:
+                if it is None:
+                    m.add_separator()
+                elif isinstance(it, tuple) and len(it) >= 2 and it[0] == "__check__":
+                    _, text, var, cmd, acc = it
+                    m.add_checkbutton(label=text, variable=var, command=cmd,
+                                      accelerator=acc if acc else "")
+                elif len(it) == 3:
+                    text, cmd, acc = it
+                    m.add_command(label=text, command=cmd, accelerator=acc if acc else "")
+                elif len(it) == 4:
+                    text, cmd, acc, u = it
+                    m.add_command(label=text, command=cmd, accelerator=acc if acc else "", underline=u)
+
+            btn = tk.Label(bar, text=label, bg=mb_bg, fg=mb_fg, font=("Segoe UI", 10),
+                           underline=underline_idx, padx=self.px(8), pady=self.px(4), cursor="hand2")
+            btn.pack(side="left")
+            self._menu_btns.append(btn)
+
+            def post(e=None):
+                x = btn.winfo_rootx()
+                y = btn.winfo_rooty() + btn.winfo_height()
+                try:
+                    m.tk_popup(x, y)
+                finally:
+                    m.grab_release()
+
+            btn.bind("<ButtonPress-1>", post)
+
+            def on_enter(e=None):
+                btn.configure(bg="#323236" if DARK_MODE else HOVER)
+
+            def on_leave(e=None):
+                btn.configure(bg="#1e1e1e" if DARK_MODE else mb_bg)
+
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
+            char = label[underline_idx].lower()
+            self.bind_all(f"<Alt-Key-{char}>", lambda e, p=post: (p(), "break")[1])
+            self.bind_all(f"<Alt-Key-{char.upper()}>", lambda e, p=post: (p(), "break")[1])
+
+        add_menu("File", 0, [
+            ("Choose poster image…", self.browse_source, "Ctrl+O", 0),
+            ("Choose output folder…", self.browse_out, "Ctrl+D", 7),
+            ("Open output folder", self.open_out, "Ctrl+E", 0),
+            None,
+            ("Generate variants now", self.start, "Ctrl+Enter", 0),
+            None,
+            ("Exit", self.on_close, "Alt+F4", 1),
+        ])
+        add_menu("Edit", 0, [
+            ("Pick event date…", self.pick_date, "", 0),
+            ("Reset date to today", lambda: self.date.set(dt.date.today().isoformat()), "", 0),
+            ("Use date as folder name", self.folder_from_date, "", 0),
+            None,
+            ("Clear selection", lambda: (self.source.set(""), self.update_info()), "", 0),
+        ])
+        add_menu("View", 0, [
+            ("Files table", lambda: self.tabs.select(0), ""),
+            ("Activity log", lambda: self.tabs.select(self.act_tab), ""),
+            None,
+            ("__check__", "Dark Mode", self.dark_mode, self.apply_dark_mode, ""),
+        ])
+        add_menu("Variants", 0, [
+            ("Output Sizes & Settings…", lambda: SizesDialog(self), "Ctrl+,", 0),
+            None,
+            ("Reset variants to defaults", self.reset_variants_to_defaults, "", 0),
+        ])
+        add_menu("Help", 0, [
+            ("Check for Updates…", lambda: self.check_updates(quiet=False), "", 0),
+            None,
+            (f"About {APP_NAME}", self.show_about, "", 0),
+        ])
+        self.menubar_sep = tk.Frame(self, height=1, bg=BORDER)
+        self.menubar_sep.pack(fill="x")
+
+    def reset_variants_to_defaults(self):
+        self.set_variants(copy.deepcopy(DEFAULT_VARIANTS))
+        self.set_status("Reset output sizes to defaults")
+
+    def build_toolbar(self):
+        bg = ttk.Style(self).lookup("TFrame", "background") or "#f0f0f0"
+        bar = tk.Frame(self, bg=bg, padx=self.px(8), pady=self.px(3))
+        bar.pack(fill="x")
+        self.toolbar_bar = bar
+        self._tb_icons = {}
+        self._tb_btns = []
+        self._tb_seps = []
+        icon_px = self.px(18)
+        cell_px = self.px(24)
+        self.tb_hint = tk.Label(bar, text="", bg=bg, fg=MUTED, font=("Segoe UI", 9))
+        self.tb_hint.pack(side="right", padx=(0, self.px(6)))
+
+        def set_tb_hint(text):
+            self.tb_hint.configure(text=text)
+            self.set_status(text or "Ready")
+
+        def make_btn(kind, tip, cmd):
+            icon = make_toolbar_icon(kind, icon_px, dark=DARK_MODE)
+            self._tb_icons[kind] = icon
+            btn = tk.Label(bar, image=icon, width=cell_px, height=cell_px, bg=bg, bd=0,
+                           highlightthickness=1, highlightbackground=bg)
+            btn.pack(side="left", padx=self.px(1))
+            self._tb_btns.append((kind, btn))
+
+            def on_enter(e=None):
+                hov = "#323236" if DARK_MODE else HOVER
+                bd_hov = "#4cc2ff" if DARK_MODE else "#99d1ff"
+                btn.configure(bg=hov, highlightbackground=bd_hov)
+
+            def on_leave(e=None):
+                cur_bg = "#252526" if DARK_MODE else (ttk.Style(self).lookup("TFrame", "background") or "#f0f0f0")
+                btn.configure(bg=cur_bg, highlightbackground=cur_bg)
+
+            def on_press(e=None):
+                pr_bg = "#094771" if DARK_MODE else "#cce4f7"
+                btn.configure(bg=pr_bg, highlightbackground=ACCENT)
+
+            def on_release(e=None):
+                on_enter()
+                if cmd:
+                    cmd()
+
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
+            btn.bind("<ButtonPress-1>", on_press)
+            btn.bind("<ButtonRelease-1>", on_release)
+            attach_tooltip(btn, tip, status_fn=set_tb_hint)
+
+        def sep():
+            s = tk.Frame(bar, width=1, height=self.px(18), bg=BORDER)
+            s.pack(side="left", padx=self.px(5), pady=self.px(4))
+            self._tb_seps.append(s)
+
+        make_btn("browse", "Choose poster image… (Ctrl+O)", self.browse_source)
+        make_btn("calendar", "Pick event date…", self.pick_date)
+        make_btn("sizes", "Output Sizes & Settings… (Ctrl+,)", lambda: SizesDialog(self))
+        sep()
+        make_btn("generate", "Generate variants now (Ctrl+Enter / F5)", self.start)
+        make_btn("open_folder", "Open output folder (Ctrl+E)", self.open_out)
+        make_btn("clear", "Clear poster selection", lambda: (self.source.set(""), self.update_info()))
+        sep()
+        make_btn("theme", "Toggle Dark Mode", self.toggle_dark_mode)
+        ttk.Separator(self).pack(fill="x")
+
+    def toggle_dark_mode(self):
+        self.dark_mode.set(not self.dark_mode.get())
+        self.apply_dark_mode()
+
+    def apply_dark_mode(self):
+        dark = bool(self.dark_mode.get())
+        apply_theme(self, dark)
+        mb_bg = "#1e1e1e" if dark else "#ffffff"
+        mb_fg = "#e8eaed" if dark else "#1a1a1a"
+        tb_bg = "#252526" if dark else (ttk.Style(self).lookup("TFrame", "background") or "#f0f0f0")
+        sep_bg = "#3c4043" if dark else BORDER
+        if hasattr(self, "menubar_frame"):
+            self.menubar_frame.configure(bg=mb_bg)
+            self.menubar_sep.configure(bg="#2d2d30" if dark else "#e5e5e5")
+            for b in self._menu_btns:
+                b.configure(bg=mb_bg, fg=mb_fg)
+        for m in getattr(self, "_menus", ()):
+            m.configure(
+                bg="#252526" if dark else "#ffffff",
+                fg="#e8eaed" if dark else "#1a1a1a",
+                activebackground="#094771" if dark else ACCENT,
+                activeforeground="#ffffff",
+                selectcolor="#4cc2ff" if dark else "#1a1a1a",
+            )
+        if hasattr(self, "toolbar_bar"):
+            self.toolbar_bar.configure(bg=tb_bg)
+            self.tb_hint.configure(bg=tb_bg, fg="#9aa0a6" if dark else MUTED)
+            icon_px = self.px(18)
+            for kind, btn in self._tb_btns:
+                icon = make_toolbar_icon(kind, icon_px, dark=dark)
+                self._tb_icons[kind] = icon
+                btn.configure(image=icon, bg=tb_bg, highlightbackground=tb_bg)
+            for s in self._tb_seps:
+                s.configure(bg=sep_bg)
+        if hasattr(self, "log_box"):
+            self.log_box.configure(
+                bg="#141414" if dark else "#fbfbfb",
+                fg="#e8eaed" if dark else "#1a1a1a",
+                insertbackground="#e8eaed" if dark else "#1a1a1a",
+                highlightbackground=sep_bg,
+                highlightcolor=sep_bg,
+            )
+        if hasattr(self, "pv_holder"):
+            pv_bg = "#141414" if dark else PREVIEW_BG
+            self.pv_holder.configure(bg=pv_bg)
+            self.preview.configure(bg=pv_bg, fg="#9aa0a6" if dark else MUTED)
+
     # ---------------------------------------------------------- UI
     def build_ui(self):
         P, gap = self.px, self.px(12)
 
-        # header band
-        header = tk.Frame(self, bg=HEADER_BG)
-        header.pack(fill="x")
-        tk.Label(header, text="Poster Variant Maker", bg=HEADER_BG, fg="#1a1a1a",
-                 font=("Segoe UI Semibold", 16)).pack(anchor="w", padx=P(20), pady=(P(14), 0))
-        tk.Label(header, text="Turn one high-resolution poster into web, social and print-ready versions "
-                              "in one click.",
-                 bg=HEADER_BG, fg=MUTED, font=("Segoe UI", 10)).pack(anchor="w", padx=P(20), pady=(0, P(14)))
-        ttk.Separator(self).pack(fill="x")
+        self.build_menubar()
+        self.build_toolbar()
 
         # footer (packed before the body so it always stays visible)
-        footer = ttk.Frame(self, padding=(P(20), P(12)))
+        footer = ttk.Frame(self, padding=(P(16), P(10)))
         footer.pack(side="bottom", fill="x")
         ttk.Separator(self).pack(side="bottom", fill="x")
         self.go_btn = ttk.Button(footer, text="Generate", style="Go.TButton", command=self.start, default="active")
@@ -755,7 +745,7 @@ class App(tk.Tk):
         self.status = ttk.Label(footer, text="Ready", style="Muted.TLabel")
         self.status.pack(side="left")
 
-        body = ttk.Frame(self, padding=(P(20), P(16), P(20), P(12)))
+        body = ttk.Frame(self, padding=(P(16), P(12), P(16), P(10)))
         body.pack(fill="both", expand=True)
         body.columnconfigure(0, weight=1)
         body.rowconfigure(2, weight=1)
@@ -808,10 +798,12 @@ class App(tk.Tk):
         pv = self.pv_frame = ttk.Labelframe(body, text="Preview", style="Section.TLabelframe", padding=P(10))
         pv.grid(row=0, column=1, rowspan=2, sticky="nsew", padx=(gap, 0), pady=(0, gap))
         self.pv_box = (P(180), P(225))
-        holder = tk.Frame(pv, width=self.pv_box[0], height=self.pv_box[1], bg=PREVIEW_BG)
+        pv_bg = "#141414" if DARK_MODE else PREVIEW_BG
+        holder = tk.Frame(pv, width=self.pv_box[0], height=self.pv_box[1], bg=pv_bg)
         holder.pack(expand=True)
         holder.pack_propagate(False)
-        self.preview = tk.Label(holder, text="No poster", bg=PREVIEW_BG, fg=MUTED, font=("Segoe UI", 9))
+        self.pv_holder = holder
+        self.preview = tk.Label(holder, text="No poster", bg=pv_bg, fg="#9aa0a6" if DARK_MODE else MUTED, font=("Segoe UI", 9))
         self.preview.pack(fill="both", expand=True)
 
         # --- files table and activity log, as tabs
@@ -887,6 +879,7 @@ class App(tk.Tk):
         self.status.configure(text=text, style=style)
 
     def update_info(self):
+        self.update_title()
         path = self.source.get().strip()
         text, style, dims = "No poster selected. Drag one onto this window, or click Browse.", "Muted.TLabel", ""
         if path:
@@ -1206,6 +1199,8 @@ class App(tk.Tk):
         win.title(f"About {APP_NAME}")
         win.transient(self)
         win.resizable(False, False)
+        if DARK_MODE:
+            win.configure(bg="#1e1e1e")
         P = self.px
         body = ttk.Frame(win, padding=P(20))
         body.pack()
@@ -1227,6 +1222,7 @@ class App(tk.Tk):
         ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="Check for Updates Now",
                    command=lambda: self.check_updates(quiet=False)).pack(side="right", padx=(0, P(8)))
+        set_window_dark_titlebar(win, DARK_MODE)
         win.bind("<Escape>", lambda e: win.destroy())
         win.update_idletasks()
         win.geometry(f"+{self.winfo_rootx() + P(120)}+{self.winfo_rooty() + P(120)}")
@@ -1284,13 +1280,17 @@ class App(tk.Tk):
         win.withdraw()
         win.title("Update available")
         win.transient(self)
+        if DARK_MODE:
+            win.configure(bg="#1e1e1e")
         P = self.px
         body = ttk.Frame(win, padding=P(18))
         body.pack(fill="both", expand=True)
         ttk.Label(body, text=f"{APP_NAME} {rel['version']} is available", font=("Segoe UI Semibold", 12)).pack(anchor="w")
         ttk.Label(body, text=f"You have version {VERSION}. What's new:", style="Muted.TLabel").pack(anchor="w", pady=(P(2), P(8)))
         notes = tk.Text(body, height=10, width=64, wrap="word", font=("Segoe UI", 10), relief="flat",
-                        highlightthickness=1, highlightbackground="#d9d9d9", padx=P(8), pady=P(6))
+                        bg="#141414" if DARK_MODE else "#ffffff",
+                        fg="#e8eaed" if DARK_MODE else "#1a1a1a",
+                        highlightthickness=1, highlightbackground="#3c4043" if DARK_MODE else "#d9d9d9", padx=P(8), pady=P(6))
         notes.insert("1.0", rel["notes"].strip() or "(no release notes)")
         notes.configure(state="disabled")
         notes.pack(fill="both", expand=True)
@@ -1304,6 +1304,7 @@ class App(tk.Tk):
             ttk.Button(bar, text="Open Download Page", style="Go.TButton", default="active",
                        command=lambda: (win.destroy(), webbrowser.open(rel["page"]))).pack(side="right")
         ttk.Button(bar, text="Later", command=win.destroy).pack(side="right", padx=(0, P(8)))
+        set_window_dark_titlebar(win, DARK_MODE)
         win.update_idletasks()
         win.geometry(f"+{self.winfo_rootx() + P(100)}+{self.winfo_rooty() + P(100)}")
         win.deiconify()
@@ -1384,6 +1385,7 @@ class App(tk.Tk):
         self.cfg["output_dir"] = self.out_dir.get().strip()
         self.cfg["move_source"] = self.move_src.get()
         self.cfg["auto_update"] = self.auto_update.get()
+        self.cfg["dark_mode"] = self.dark_mode.get()
         self.save_config()
         self.destroy()
 

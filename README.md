@@ -22,9 +22,20 @@
   <a href="https://cksoftware.netlify.app/">More CK Software</a>
 </p>
 
-![CK Poster Variant Maker](docs/screenshot.png)
+<p align="center">
+  <img src="docs/screenshot.png" alt="CK Poster Variant Maker in Light Mode" width="49%">
+  <img src="docs/screenshot-dark.png" alt="CK Poster Variant Maker in Dark Mode" width="49%">
+</p>
 
 Part of the **CK Suite**, a set of small, free Windows tools by [CK Software](https://cksoftware.netlify.app/).
+
+## Features
+
+- **Classic Menu Bar & Toolbar:** Full `File`, `Edit`, `View`, `Tools`, `Help` menus with 2×-supersampled procedural icons, hover tooltips, and active poster path in the title bar.
+- **Light & Dark Mode:** Native theme toggleable from the toolbar or **View → Dark Mode**, complete with dark title bar styling (persisted across launches).
+- **Smooth Window Resizing:** Snappy, flicker-free window resizing (`smooth_resize`).
+- **Drag & Drop:** Drop any poster image (PNG, JPG, TIFF, WebP) directly onto the window.
+- **Color Profile Preservation:** Web and social outputs are cleanly converted to sRGB; full-quality PNG keeps the original profile.
 
 ## What you get
 

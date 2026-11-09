@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+- Top menu bar (`File`, `Edit`, `View`, `Variants`, `Help`) with keyboard shortcuts and `Alt` mnemonics
+- 2×-supersampled procedural icon toolbar with instant hover tooltips and shortcuts
+- Dark Mode toggle (`View -> Dark Mode` or toolbar moon icon) styling title bar, menus, toolbar, preview, calendar and dialogs
+- Active poster file name displayed in the window title bar
+- Condensed UI layout with tighter frame and footer padding
+
 ## 1.0.1
 
 - Smooth window resizing: the window keeps up with the mouse while you drag its edge, and lays
