@@ -1,0 +1,18 @@
+# Python / build output
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+installer/Output/
+
+# Local settings and working files (images at the top level are your own posters)
+config.json
+/*.png
+/*.jpg
+/*.jpeg
+/*.tif
+/*.tiff
+/*.webp
+*.backup
+*_backup.py.txt

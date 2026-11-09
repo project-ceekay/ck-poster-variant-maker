@@ -1,0 +1,62 @@
+# Builds the Windows installer and publishes a GitHub Release whenever a version tag is pushed:
+#   1. set VERSION in program.py      2. add the notes to CHANGELOG.md
+#   3. git tag v1.2.3 && git push origin v1.2.3
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check the tag matches VERSION in program.py
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $code = (Select-String -Path program.py -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
+          if ($tag -ne $code) { throw "Tag v$tag doesn't match VERSION = `"$code`" in program.py" }
+          "APP_VERSION=$code" >> $env:GITHUB_ENV
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip -r requirements.txt pyinstaller
+
+      - name: Build the program
+        run: pyinstaller --noconfirm --windowed --name "CK Poster Variant Maker" --icon favicon.ico program.py
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:APP_VERSION" installer\setup.iss
+
+      - name: Release notes from CHANGELOG.md
+        shell: python
+        run: |
+          import os, re
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          v = os.environ["APP_VERSION"]
+          m = re.search(rf"^## \[?v?{re.escape(v)}\]?.*?\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+          notes = m.group(1).strip() if m else f"Version {v}"
+          notes += ("\n\n---\n**Install:** download the Setup .exe below and run it. Windows may show "
+                    "\"Windows protected your PC\" because the installer isn't code-signed: click "
+                    "**More info → Run anyway**.")
+          open("release-notes.md", "w", encoding="utf-8").write(notes)
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = (Get-ChildItem installer\Output\*.exe).FullName
+          gh release create "${{ github.ref_name }}" $setup --title "CK Poster Variant Maker $env:APP_VERSION" --notes-file release-notes.md
